@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="question">
+	<select id="dataCount" parameterType="map" resultType="Integer">
+		SELECT COUNT(*) FROM question WHERE parentCode = 0 AND gubun=#{gubun}
+	</select>
+	
+	<select id="dataCountNoAnswer" parameterType="map" resultType="Integer">
+		SELECT COUNT(*) 
+		FROM question q 
+		WHERE parentCode = 0 AND gubun=#{gubun}
+   			AND qnaCode NOT IN(
+        		SELECT parentCode
+        		FROM question 
+        		WHERE parentCode != 0
+		)
+	</select>
+	
+	<select id="listQuestion" parameterType="map" resultType="com.sp.question.Question">
+		SELECT * FROM(
+		    SELECT ROWNUM rnum, tb.* FROM(
+		        SELECT q.qnaCode, gubun, subject, TO_CHAR(qDate,'YYYY-MM-DD') qDate, q.parentCode, a.qnaCode as answer, memberId
+		        FROM question q
+		        LEFT OUTER JOIN (
+		            SELECT qnaCode, parentCode
+		            FROM question 
+		            WHERE parentCode != 0
+		        )a ON a.parentCode=q.qnaCode  
+		        LEFT OUTER JOIN member1 m1 ON m1.usersCode = q.usersCode
+                WHERE gubun = #{gubun}  AND q.parentCode = 0
+                ORDER BY TO_CHAR(q.qDate,'YYYY-MM-DD HH:MI:SS') DESC 
+        <![CDATA[
+		    )tb WHERE ROWNUM <= #{end}
+		)WHERE rnum >= #{start}
+		]]>
+	</select>
+	
+	<select id="listQuestionNoAnswer" parameterType="map" resultType="com.sp.question.Question">
+        SELECT * FROM(
+		    SELECT ROWNUM rnum, tb.* FROM(
+		        SELECT q.qnaCode, gubun, subject, TO_CHAR(qDate,'YYYY-MM-DD') qDate, q.parentCode, a.qnaCode as answer, memberId
+		        FROM question q
+		        LEFT OUTER JOIN (
+		            SELECT qnaCode, parentCode
+		            FROM question 
+		            WHERE parentCode != 0
+		        )a ON a.parentCode=q.qnaCode  
+		        LEFT OUTER JOIN member1 m1 ON m1.usersCode = q.usersCode
+                WHERE a.qnaCode IS NULL AND gubun = #{gubun} and q.parentCode = 0
+                ORDER BY TO_CHAR(q.qDate,'YYYY-MM-DD HH:MI:SS') DESC
+        <![CDATA[
+		    )tb WHERE ROWNUM <= #{end}
+		)WHERE rnum >= #{start}
+		]]>
+	</select>
+	
+	<select id="readQuestion" parameterType="Integer" resultType="com.sp.question.Question">
+		SELECT qnaCode, gubun, subject, content, TO_CHAR(qDate,'YYYY-MM-DD') qDate, parentCode, usersCode
+		FROM question
+		WHERE qnaCode = #{num}
+	</select>
+	
+	<select id="readAnswer" parameterType="Integer" resultType="com.sp.question.Question">
+		SELECT content, usersCode FROM question WHERE parentCode = #{num}
+	</select>
+	
+	<delete id="deleteQuestion" parameterType="Integer">
+		DELETE FROM question WHERE qnaCode = #{num} OR parentCode = #{num}
+	</delete>
+	
+	<insert id="insertAnswer" parameterType="com.sp.question.Question">
+		INSERT INTO question(qnaCode, gubun, subject, content, parentCode, usersCode)
+		VALUES(question_seq.NEXTVAL, #{gubun}, #{subject}, #{content}, #{parentCode}, #{usersCode})
+	</insert>
+	
+	<delete id="deleteAnswer" parameterType="Integer">
+		DELETE FROM question WHERE parentCode = #{num}
+	</delete>
+	
+	<update id="updateAnswer" parameterType="com.sp.question.Question">
+		UPDATE question SET content = #{content} WHERE parentCode = #{qnaCode}
+	</update>
+</mapper>

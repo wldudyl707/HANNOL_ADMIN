@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="company"> 
+	<!-- 업체추가 -->
+	<insert id="insertCompany" parameterType="com.sp.company.Company">
+		INSERT INTO company(companyCode, name, tel, memo) VALUES (company_seq.NEXTVAL, #{name}, #{tel}, #{memo})
+	</insert> 
+	
+	<!-- 검색 -->
+	<sql id="where-list">
+		<if test="searchKey=='companyName'">
+			INSTR(lower(name), lower(#{searchValue})) &gt; 0
+		</if>
+		<if test="searchKey=='content'">
+			INSTR(lower(memo), lower(#{searchValue})) &gt; 0
+		</if>
+		<if test="searchKey=='tel'">
+			(tel = #{searchValue} or REPLACE(tel, '-', '') = #{searchValue})
+		</if>
+		<if test="searchKey=='created'">
+			(TO_CHAR(startDate, 'YYYY-MM-DD') = #{searchValue} or TO_CHAR(startDate, 'YYYYMMDD') = #{searchValue})
+		</if>
+	</sql>
+	
+	<!-- 데이터 개수 -->
+	<select id="dataCount" resultType="Integer" parameterType="map">
+		SELECT NVL(COUNT(*), 0) FROM company
+		<where>
+			<if test="searchValue!=null and searchValue!=''">
+				<include refid="where-list"/>
+			</if>
+		</where>
+	</select>
+	
+	<!-- 리스트 -->
+	<select id="listCompany" resultType="com.sp.company.Company" parameterType="map">
+		SELECT * FROM(
+		    SELECT ROWNUM rnum, tb.* FROM(
+		        SELECT companyCode, name, memo, tel, TO_CHAR(startDate, 'YYYY-MM-DD') startDate
+		        FROM company
+		        <where>
+		        	<if test="searchValue!=null and searchValue!=''">
+		        		<include refid="where-list"/>
+		        	</if>
+		        </where>
+		        ORDER BY companyCode DESC
+		    )tb WHERE ROWNUM &lt;= #{end}
+		) WHERE rnum &gt;= #{start}
+	</select> 
+	
+	<!-- 글보기 -->
+	<select id="readCompany" resultType="com.sp.company.Company" parameterType="Integer">
+		SELECT companyCode, name, tel, TO_CHAR(startDate, 'YYYY"년" MM"월" DD"일"  AM HH"시" MI"분"') startDate, memo
+		FROM company
+		WHERE companyCode = #{num}
+	</select>
+	
+	<!-- 업체 수정 -->
+	<update id="updateCompany" parameterType="com.sp.company.Company">
+		UPDATE company SET name = #{name}, tel = #{tel}, memo = #{memo} 
+		WHERE companyCode = #{companyCode}
+	</update>
+	
+	<!-- 업체 삭제 -->
+	<delete id="deleteCompany" parameterType="Integer">
+		DELETE FROM company WHERE companyCode = #{companyCode}
+	</delete>
+</mapper>

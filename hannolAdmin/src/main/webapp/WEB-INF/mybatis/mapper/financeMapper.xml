@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="finance">
+
+	<select id="getYears" resultType="com.sp.finance.Finance">
+		SELECT DISTINCT TO_CHAR(PAYDATE,'YYYY') AS YEAR
+		FROM PAYMENT
+	    	UNION
+	    SELECT DISTINCT TO_CHAR(REPAIRDATE,'YYYY') AS YEAR
+		FROM REPAIR
+	        UNION 
+	    SELECT DISTINCT TO_CHAR(INDATE,'YYYY') AS YEAR
+	    FROM GOODSIN
+	    ORDER BY YEAR DESC
+	</select>
+
+	<select id="getYearsPayment" resultType="com.sp.finance.Finance">
+		SELECT DISTINCT TO_CHAR(PAYDATE,'YYYY') AS YEAR
+		FROM PAYMENT
+		ORDER BY YEAR DESC
+	</select>
+	
+	<select id="getYearsLoss" resultType="com.sp.finance.Finance">
+		SELECT DISTINCT TO_CHAR(REPAIRDATE,'YYYY') AS YEAR
+		FROM REPAIR
+	        UNION 
+	    SELECT DISTINCT TO_CHAR(INDATE,'YYYY') AS YEAR
+	    FROM GOODSIN
+	    ORDER BY YEAR DESC
+	</select>
+	
+	<select id="getSalePayment" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT
+		    from ( 
+		        select PAYDATE, (PRICE - DCPRICE) AS TOTALSALE
+		        , to_char(PAYDATE,'YYYY') as YEAR
+		        , to_char(PAYDATE,'Q') as QUARTER 
+                , to_char(PAYDATE,'MM') as MONTH
+                , to_char(PAYDATE,'dd') as DAY
+                , state
+		        from PAYMENT p
+		        join cardInfo c on p.payCode = p.payCode
+		    ) 
+		    WHERE STATE = '승인완료'
+		    group by rollup(YEAR, QUARTER, MONTH, DAY)
+		    order by YEAR, QUARTER, MONTH, DAY
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="getExpenseRepair" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT
+		    from ( 
+		        select REPAIRDATE, (COST) AS TOTALSALE
+		        , to_char(REPAIRDATE,'YYYY') as YEAR
+		        , to_char(REPAIRDATE,'Q') as QUARTER 
+                , to_char(REPAIRDATE,'MM') as MONTH
+                , to_char(REPAIRDATE,'dd') as DAY
+		        from REPAIR
+		    ) 
+		    group by rollup(YEAR, QUARTER, MONTH, DAY)
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="getExpenseGoodsIn" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT
+		    from ( 
+		        select INDATE, (QUANTITY * UNITPRICE) AS TOTALSALE
+		        , to_char(INDATE,'YYYY') as YEAR
+		        , to_char(INDATE,'Q') as QUARTER 
+                , to_char(INDATE,'MM') as MONTH
+                , to_char(INDATE,'dd') as DAY
+		        from GOODSIN
+		    ) 
+		    group by rollup(YEAR, QUARTER, MONTH, DAY)
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="profitLinePeriod" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT TO_CHAR(PAYDATE,'YYYY-MM-DD') PAYDATE, SALEAMOUNT
+		FROM(
+		    SELECT PAYDATE, SUM(PRICE-DCPRICE) SALEAMOUNT 
+		    FROM (
+		        SELECT PAYDATE, PRICE, DCPRICE, STATE
+		        FROM PAYMENT P
+		        JOIN CARDINFO C ON P.PAYCODE = P.PAYCODE
+		        <![CDATA[
+		        WHERE PAYDATE >= #{startDate} AND PAYDATE <= #{endDate}
+		        ]]>
+		        ORDER BY PAYDATE
+		    )
+            WHERE STATE = '승인완료'
+		    GROUP BY ROLLUP(PAYDATE)
+		    ORDER BY PAYDATE
+		)
+		WHERE PAYDATE IS NOT NULL
+	</select>
+	
+	<select id="expenseRepairPeriod" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT TO_CHAR(REPAIRDATE,'YYYY-MM-DD') REPAIRDATE, SALEAMOUNT
+		FROM(
+		    SELECT REPAIRDATE, SUM(COST) SALEAMOUNT 
+		    FROM (
+		        SELECT REPAIRDATE, COST
+		        FROM REPAIR
+		        <![CDATA[
+		        WHERE REPAIRDATE >= #{startDate} AND REPAIRDATE <= #{endDate}
+		        ]]>
+		       ORDER BY REPAIRDATE
+		    )
+		    GROUP BY ROLLUP(REPAIRDATE)
+		    ORDER BY REPAIRDATE
+		)
+		WHERE REPAIRDATE IS NOT NULL
+	</select>
+	
+	<select id="expenseGoodsInPeriod" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT TO_CHAR(INDATE,'YYYY-MM-DD') INDATE, SALEAMOUNT
+		FROM(
+		    SELECT INDATE, SUM(QUANTITY * UNITPRICE) SALEAMOUNT 
+		    FROM (
+		        SELECT INDATE, QUANTITY, UNITPRICE
+		        FROM GOODSIN
+		        <![CDATA[
+		        WHERE INDATE >= #{startDate} AND INDATE <= #{endDate}
+		        ]]>
+		       ORDER BY INDATE
+		    )
+		    GROUP BY ROLLUP(INDATE)
+		    ORDER BY INDATE
+		)
+		WHERE INDATE IS NOT NULL
+	</select>
+	
+	<select id="getProfitData" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT, PARENTCODE
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT, PARENTCODE
+		    from ( 
+		        select PAYDATE, (p.PRICE - DCPRICE) AS TOTALSALE
+		        , to_char(PAYDATE,'YYYY') as YEAR
+		        , to_char(PAYDATE,'Q') as QUARTER 
+                , to_char(PAYDATE,'MM') as MONTH
+                , to_char(PAYDATE,'dd') as DAY
+                , PARENTCODE
+                , c.state
+		        from PAYMENT p
+                LEFT OUTER JOIN paymentInfo pi ON p.payCode = pi.payCode
+                LEFT OUTER JOIN goods g ON g.goodsCode = pi.goodsCode
+                LEFT OUTER JOIN goodsgubun gb ON gb.gubunCode = g.gubunCode
+                LEFT OUTER JOIN cardInfo c on p.payCode = p.payCode
+		    ) 
+		    WHERE STATE = '승인완료'
+		    group by rollup(YEAR, QUARTER, MONTH, DAY, PARENTCODE)
+		    order by YEAR, QUARTER, MONTH, DAY, PARENTCODE
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+            AND PARENTCODE IS NOT NULL
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="getLossGoodsData" parameterType="map" resultType="com.sp.finance.Finance">
+		 SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT, MEMO
+			FROM 
+			(
+			    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT, MEMO
+			    from ( 
+			        select INDATE, (QUANTITY * UNITPRICE) AS TOTALSALE
+			        , to_char(INDATE,'YYYY') as YEAR
+			        , to_char(INDATE,'Q') as QUARTER 
+	                , to_char(INDATE,'MM') as MONTH
+	                , to_char(INDATE,'dd') as DAY
+	                , MEMO
+			        from GOODSIN
+			    ) 
+			    group by rollup(YEAR, QUARTER, MONTH, DAY), MEMO
+			)
+			WHERE QUARTER IS NOT NULL 
+				AND MONTH IS NOT NULL 
+				AND DAY IS NOT NULL 
+				AND YEAR = #{year}
+	</select>
+	
+	<select id="getLossRepairData" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT, MEMO
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT, MEMO
+		    from ( 
+		        select REPAIRDATE, (COST) AS TOTALSALE
+		        , to_char(REPAIRDATE,'YYYY') as YEAR
+		        , to_char(REPAIRDATE,'Q') as QUARTER 
+                , to_char(REPAIRDATE,'MM') as MONTH
+                , to_char(REPAIRDATE,'dd') as DAY
+                , MEMO
+		        from REPAIR
+		    ) 
+		    group by rollup(YEAR, QUARTER, MONTH, DAY), MEMO
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="getLossDiscountData" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT, MEMO
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT, MEMO
+		    from ( 
+		        select PAYDATE, d.DCPRICE AS TOTALSALE
+		        , to_char(PAYDATE,'YYYY') as YEAR
+		        , to_char(PAYDATE,'Q') as QUARTER 
+                , to_char(PAYDATE,'MM') as MONTH
+                , to_char(PAYDATE,'dd') as DAY
+                , MEMO
+		        from discount d
+                LEFT OUTER JOIN payment p ON p.payCode = d.payCode
+		    ) 
+		    group by rollup(YEAR, QUARTER, MONTH, DAY), MEMO
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="getSaleTicket" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT
+		    from ( 
+		        select p.PAYDATE, (p.PRICE - p.DCPRICE) AS TOTALSALE
+		        , to_char(PAYDATE,'YYYY') as YEAR
+		        , to_char(PAYDATE,'Q') as QUARTER 
+                , to_char(PAYDATE,'MM') as MONTH
+                , to_char(PAYDATE,'dd') as DAY
+                , c.state
+		        from PAYMENT p
+		        left outer join cardInfo c on p.payCode = p.payCode
+                left outer join paymentinfo pi on pi.paycode = p.paycode
+                left outer join goods g on g.goodscode = pi.goodscode
+                left outer join goodsgubun gg on g.gubuncode = gg.gubuncode
+                WHERE gg.gubuncode IN (
+                     SELECT gubuncode FROM goodsgubun 
+                     WHERE gubuncode != 1
+                     START WITH gubuncode= 1                                  
+                     CONNECT BY PRIOR gubuncode=parentcode
+                )
+		    ) 
+		    WHERE STATE = '승인완료'
+		    group by rollup(YEAR, QUARTER, MONTH, DAY)
+		    order by YEAR, QUARTER, MONTH, DAY
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="getSaleGift" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT ROWNUM AS RNUM, YEAR, QUARTER, MONTH, DAY, SALEAMOUNT
+		FROM 
+		(
+		    select YEAR, QUARTER, MONTH, DAY, sum(TOTALSALE) as SALEAMOUNT
+		    from ( 
+		        select p.PAYDATE, (p.PRICE - p.DCPRICE) AS TOTALSALE
+		        , to_char(PAYDATE,'YYYY') as YEAR
+		        , to_char(PAYDATE,'Q') as QUARTER 
+                , to_char(PAYDATE,'MM') as MONTH
+                , to_char(PAYDATE,'dd') as DAY
+                , c.state
+		        from PAYMENT p
+		        left outer join cardInfo c on p.payCode = p.payCode
+                left outer join paymentinfo pi on pi.paycode = p.paycode
+                left outer join goods g on g.goodscode = pi.goodscode
+                left outer join goodsgubun gg on g.gubuncode = gg.gubuncode
+                WHERE gg.gubuncode IN (
+                     SELECT gubuncode FROM goodsgubun 
+                     WHERE gubuncode != 2
+                     START WITH gubuncode= 2                                  
+                     CONNECT BY PRIOR gubuncode=parentcode
+                )
+		    ) 
+		    WHERE STATE = '승인완료'
+		    group by rollup(YEAR, QUARTER, MONTH, DAY)
+		    order by YEAR, QUARTER, MONTH, DAY
+		)
+		WHERE QUARTER IS NOT NULL 
+			AND MONTH IS NOT NULL 
+			AND DAY IS NOT NULL 
+			AND YEAR = #{year}
+	</select>
+	
+	<select id="ticketLinePeriod" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT TO_CHAR(PAYDATE,'YYYY-MM-DD') PAYDATE, SALEAMOUNT
+		FROM(
+		    SELECT PAYDATE, SUM(PRICE-DCPRICE) SALEAMOUNT 
+		    FROM (
+		        SELECT P.PAYDATE, P.PRICE, P.DCPRICE, C.STATE
+		        FROM PAYMENT P
+		        JOIN CARDINFO C ON P.PAYCODE = P.PAYCODE
+		        left outer join paymentinfo pi on pi.paycode = p.paycode
+                left outer join goods g on g.goodscode = pi.goodscode
+                left outer join goodsgubun gg on g.gubuncode = gg.gubuncode
+                WHERE gg.gubuncode IN (
+                     SELECT gubuncode FROM goodsgubun 
+                     WHERE gubuncode != 1
+                     START WITH gubuncode= 1                                  
+                     CONNECT BY PRIOR gubuncode=parentcode
+                )
+                <![CDATA[
+		        AND PAYDATE >= #{startDate} AND PAYDATE <= #{endDate}
+		        ]]>
+		        ORDER BY PAYDATE
+		    )
+            WHERE STATE = '승인완료'
+		    GROUP BY ROLLUP(PAYDATE)
+		    ORDER BY PAYDATE
+		)
+		WHERE PAYDATE IS NOT NULL
+	</select>
+	
+	<select id="giftLinePeriod" parameterType="map" resultType="com.sp.finance.Finance">
+		SELECT TO_CHAR(PAYDATE,'YYYY-MM-DD') PAYDATE, SALEAMOUNT
+		FROM(
+		    SELECT PAYDATE, SUM(PRICE-DCPRICE) SALEAMOUNT 
+		    FROM (
+		        SELECT P.PAYDATE, P.PRICE, P.DCPRICE, C.STATE
+		        FROM PAYMENT P
+		        JOIN CARDINFO C ON P.PAYCODE = P.PAYCODE
+		        left outer join paymentinfo pi on pi.paycode = p.paycode
+                left outer join goods g on g.goodscode = pi.goodscode
+                left outer join goodsgubun gg on g.gubuncode = gg.gubuncode
+                WHERE gg.gubuncode IN (
+                     SELECT gubuncode FROM goodsgubun 
+                     WHERE gubuncode != 2
+                     START WITH gubuncode= 2                                  
+                     CONNECT BY PRIOR gubuncode=parentcode
+                )
+                <![CDATA[
+		        AND PAYDATE >= #{startDate} AND PAYDATE <= #{endDate}
+		        ]]>
+		        ORDER BY PAYDATE
+		    )
+            WHERE STATE = '승인완료'
+		    GROUP BY ROLLUP(PAYDATE)
+		    ORDER BY PAYDATE
+		)
+		WHERE PAYDATE IS NOT NULL
+	</select>
+</mapper>

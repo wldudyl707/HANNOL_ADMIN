@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="facility">
+	
+	<insert id="insertFacility" parameterType="com.sp.facility.Facility">
+	  INSERT INTO facility(facilityCode,name, state, installDate, removeDate, saveMainFilename, originalMainFilename, saveLocFilename, originalLocFilename, memo, gubunCode, themeCode) 
+	  VALUES (facility_seq.NEXTVAL, #{name}, #{state}, #{installDate}, #{removeDate}, #{saveMainFilename, jdbcType=VARCHAR}, #{originalMainFilename, jdbcType=VARCHAR}, #{saveLocFilename, jdbcType=VARCHAR}, #{originalLocFilename, jdbcType=VARCHAR}, #{memo}, #{gubunCode}, #{themeCode})
+	</insert>
+	
+	<insert id="insertRides" parameterType="Integer">
+	   INSERT INTO rides(facilityCode) VALUES (#{code})
+	</insert>
+	<insert id="insertRidesInfo" parameterType="Integer">
+	   INSERT INTO ridesInfo(facilityCode,state,ridesInfoCode)
+		VALUES (#{facilityCode},#{state},ridesInfo_seq.NEXTVAL)
+	</insert>
+	
+
+	<sql id="where-list">
+	  <if test="searchKey=='name'">
+	      S.name =#{searchValue}
+	  </if>
+	  <if test="searchKey=='all'">
+	      (INSTR(subject, #{searchValue}) &gt; 0)
+	      OR
+	      (INSTR(content, #{searchValue}) &gt; 0)
+	  </if>
+	  <if test="searchKey=='subject'">
+	       INSTR(subject, #{searchValue}) &gt; 0
+	  </if>
+	  <if test="searchKey=='content'">
+	      INSTR(content, #{searchValue}) &gt; 0 
+	  </if>
+	  <if test="searchKey=='created'">
+	      (TO_CHAR(N.created, 'YYYY-MM-DD') = #{searchValue}
+            OR TO_CHAR(N.created, 'YYYYMMDD') = #{searchValue})
+	  </if>
+	</sql>
+
+	<!-- 글개수 -->
+	<select id="dataCount" parameterType="map"
+	            resultType="Integer">
+	  SELECT NVL(COUNT(*), 0) FROM Facility 
+	     <where>
+	     	<if test="searchValue!=null and searchValue!='' ">
+	     	    <include refid="where-list"/>
+	     	</if>
+	     </where>   
+	</select>
+
+	<!-- 시설리스트 -->
+	<select id="listFacility" parameterType="map"
+	            resultType="com.sp.facility.Facility">
+		SELECT * FROM (
+		    SELECT ROWNUM rnum, tb.* FROM (
+			    select facilityCode, g.name gubunName, f.name, themeName, state, TO_CHAR(installDate, 'YYYY"-" MM"-" DD"-"')installDate, TO_CHAR(removeDate, 'YYYY"-" MM"-" DD"-"')removeDate, saveMainFilename, 
+				saveLocFilename, memo 
+				from facility f
+				join theme t on f.themeCode=t.themeCode
+				join facGubun g on f.gubunCode = g.gubunCode 
+                    <where>
+                         <if test="searchValue != null and searchValue != ''">
+			                  <include refid="where-list"/>
+		                 </if>
+	                </where>
+                ORDER BY facilityCode DESC
+	<![CDATA[
+	        ) tb WHERE ROWNUM <= #{end}
+	    ) WHERE rnum >= #{start}
+	]]>
+	</select>
+	
+
+	<!-- 글리스트 -->
+	<select id="list" resultType="com.sp.facility.Facility">
+		SELECT * FROM (
+		    SELECT ROWNUM rnum, tb.* FROM (
+			    SELECT r.facilityCode, s.gubunName, t.themeName, g.genreName, f.name, installDate, removeDate, state
+                FROM rides r
+                JOIN facility f ON r.facilityCode = f.facilityCode
+                JOIN theme t ON f.themeCode = t.themeCode
+                JOIN genre g ON g.genreCode = r.genreCode
+                JOIN stateGubun s ON s.gubunCode = r.gubunCode
+                    <where>
+                         <if test="searchValue != null and searchValue != ''">
+			                  <include refid="where-list"/>
+		                 </if>
+	                </where>
+                ORDER BY facilityCode DESC
+	<![CDATA[
+	        ) tb WHERE ROWNUM <= #{end}
+	    ) WHERE rnum >= #{start}
+	]]>
+	</select>
+	
+	<update id="updateFacility" parameterType="com.sp.facility.Facility">
+		UPDATE facility 
+		SET themeCode=#{themeCode}
+		    ,gubunCode=#{gubunCode}
+		    ,name=#{name}
+		    ,state=#{state}
+		    ,removeDate=#{removeDate}
+		    ,saveMainFilename=#{saveMainFilename}
+		    ,saveLocFilename=#{saveLocFilename}
+		    ,memo=#{memo}
+		WHERE facilityCode=#{facilityCode}
+	</update>
+	
+	<select id="readFacility" resultType="com.sp.facility.Facility" parameterType="Integer">
+		select g.name as gubunName, facilityCode, f.name, themeName, state, TO_CHAR(installDate,'YYYY-MM-DD')installDate, TO_CHAR(removeDate,'YYYY-MM-DD')removeDate, saveMainFilename, 
+		saveLocFilename, memo, f.gubunCode 
+		from facility f
+		join facGubun g on f.gubunCode=g.gubunCode
+		join theme t on f.themeCode=t.themeCode
+		where facilityCode=#{facilityCode}
+	</select>
+	
+	<select id="readFacilityCode" resultType="Integer">
+		select * from(
+		    select  facilityCode from facility 
+		    ORDER BY facilityCode DESC)
+	    where rownum=1
+	</select>
+	
+	<select id="selectCreate" resultType="com.sp.facility.Facility">
+		select gubunCode, name as gubunName from facGubun
+	</select>
+	
+<!-- 	<select id="ListFacilityImg" parameterType="Long" resultType="map">
+		select Facility
+	
+	</select>
+	 -->
+	
+	
+</mapper>

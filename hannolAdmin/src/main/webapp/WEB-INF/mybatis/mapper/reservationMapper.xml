@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="reservation">
+	<!-- 공연 -->
+	<!-- 현재 상영중인 공연 -->
+	<select id="listNowPlaying" resultType="com.sp.schedule.Show">
+		select s.showCode, s.showname, si.showinfocode 
+		from show s 
+		join showinfo si
+		    on s.showCode = si.SHOWCODE
+		join stage st
+		    on si.FACILITYCODE = st.FACILITYCODE
+		where s.gubunCode = 3
+<![CDATA[
+		    and si.startDate <= sysdate and si.endDate >= sysdate
+]]>
+	</select>
+	
+	<!-- 상영날짜 list -->
+	<select id="listScreenDate" parameterType="Integer" resultType="map">
+		select schCode, to_char(screenDate, 'yy-mm-dd') screenDate
+		from showSch
+<![CDATA[		
+		where SHOWINFOcode = #{showInfoCode} and screenDate >= sysdate-1
+]]>
+	</select>
+	
+	<!-- 시작시간 list -->
+	<select id="listStartTime" parameterType="Integer" resultType="map">
+		select sStartCode, startTime
+		from showStartTime
+		where schCode = #{schCode}
+	</select>
+	
+	<!-- 예약회원 list -->
+	<select id="listReservationMember" parameterType="Integer" resultType="com.sp.reservation.ShowReservation">
+		select showBookCode, bookDate, memberName, tel
+		from showBook sb 
+		join member1 m1
+		    on sb.usersCode = m1.usersCode
+		left join member2 m2
+		    on m1.USERSCODE = m2.USERSCODE
+		where sStartCode = #{sStartCode}
+	</select>
+	
+	<!-- 회원의 예약 좌석 list -->
+	<select id="listReservationSeatNum" parameterType="Integer" resultType="String">
+		select seatNum
+		from showBookInfo
+		where showBookCode = #{showBookCode}
+	</select>
+	
+	<!-- 시설의 총 좌석수 -->
+		<select id="readSeatCount" parameterType="Integer" resultType="Integer">
+		select nvl(seatCount, 0) seatCount
+		from facility f left outer join stage s
+			on f.FACILITYCODE = s.FACILITYCODE
+		where gubuncode = 3 and f.facilitycode = (
+			select facilityCode 
+			from showInfo
+			where showInfocode = #{showInfocode}
+		)
+	</select>
+	
+	<!-- 예약좌석 리스트 -->
+ 	<select id="listSeat" parameterType="map" resultType="Integer">
+		select seatNum
+		from showbookinfo
+		where sStartCode = (
+		    select sStartCode
+		    from showStartTime
+		    where startTime = #{startTime} and schCode = (
+		        select schCode
+		        from showSch
+		        where screenDate = #{screenDate} and showInfoCode = #{showInfoCode})
+		)
+	</select>
+	
+		<!-- 공연 예약 상세 삭제 -->
+	<delete id="deleteShowBookInfo" parameterType="Integer">
+		delete from showbookinfo
+		where showBookCode = #{showBookCode}
+	</delete>
+
+	<!-- 공연 예약 삭제 -->
+	<delete id="deleteShowBook" parameterType="Integer">
+		delete from showbook
+		where showBookCode = #{showBookCode}
+	</delete>
+	
+		<!-- 이용권 발급 리스트 -->
+	<select id="readTicketCodeByPayCode" parameterType="Integer" resultType="Integer">
+		select ticketCode 
+	    from ticket
+	    where payCode = #{payCode}
+	</select>
+	
+	<!-- 티켓코드->공연예약코드 -->
+	<select id="readShowBookCodeByTicketCode" parameterType="Integer" resultType="Integer">
+		select showBookCode
+		from showBook
+		where ticketCode = #{ticketCode}
+	</select>
+	
+
+</mapper>

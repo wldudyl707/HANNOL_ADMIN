@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="rides">
+	
+	<insert id="insertRides" parameterType="com.sp.rides.Rides">
+	  INSERT INTO rides(boardingTime, passengers, minHeight, maxHeight, limit, genreCode, gubunCode) 
+	  VALUES (#{boardingTime}, #{passengers}, #{minHeight}, #{maxHeight}, #{limit}, #{genreCode}, #{gubunCode})
+	</insert>
+		
+	<insert id="insertRidesInfo" parameterType="com.sp.rides.Rides">
+		INSERT INTO ridesInfo(facilityCode,state,ridesInfoCode)
+		VALUES (#{facilityCode},#{state},ridesInfo_seq.NEXTVAL)
+	</insert>
+	
+	<sql id="where-list">
+	  <if test="searchKey=='name'">
+	      S.name =#{searchValue}
+	  </if>
+	  <if test="searchKey=='all'">
+	      (INSTR(subject, #{searchValue}) &gt; 0)
+	      OR
+	      (INSTR(content, #{searchValue}) &gt; 0)
+	  </if>
+	  <if test="searchKey=='subject'">
+	       INSTR(subject, #{searchValue}) &gt; 0
+	  </if>
+	  <if test="searchKey=='content'">
+	      INSTR(content, #{searchValue}) &gt; 0 
+	  </if>
+	  <if test="searchKey=='created'">
+	      (TO_CHAR(N.created, 'YYYY-MM-DD') = #{searchValue}
+            OR TO_CHAR(N.created, 'YYYYMMDD') = #{searchValue})
+	  </if>
+	</sql>
+
+	<!-- 글개수 -->
+	<select id="dataCount" parameterType="map"
+	            resultType="Integer">
+	 select count (*) from
+    (select f.facilityCode, themeName, g.genreName, f.name, s.gubunName, i.state, i.ridesInfoCode  
+        from facility f
+            left join rides r on f.facilityCode = r.facilityCode
+            left join theme t on t.themeCode = f.themeCode
+            left join genre g on r.genreCode = g.genreCode 
+            left join facGubun b on f.gubunCode=b.gubunCode 
+            left join ridesInfo i on i.facilityCode = f.facilityCode
+            left join stateGubun s on r.gubunCode = s.gubunCode
+    where f.gubunCode=1)
+	     <where>
+	     	<if test="searchValue!=null and searchValue!='' ">
+	     	    <include refid="where-list"/>
+	     	</if>
+	     </where>   
+	</select>
+
+	
+	<!-- 놀이기구리스트 -->
+<!-- 	<select id="listOnlyRides" parameterType="map"
+	            resultType="com.sp.rides.Rides">
+		SELECT * FROM (
+		    SELECT ROWNUM rnum, tb.* FROM (
+			    SELECT f.facilityCode, t.themeName, g.genreName, f.name, installDate, removeDate, state
+                FROM rides r
+                JOIN facility f ON r.facilityCode = f.facilityCode
+                JOIN theme t ON f.themeCode = t.themeCode
+                JOIN genre g ON g.genreCode = r.genreCode
+                    <where>
+                         <if test="searchValue != null and searchValue != ''">
+			                  <include refid="where-list"/>
+		                 </if>
+	                </where>
+                ORDER BY facilityCode DESC
+	<![CDATA[
+	        ) tb WHERE ROWNUM <= #{end}
+	    ) WHERE rnum >= #{start}
+	]]>
+	</select> -->
+	
+
+	<!-- 글리스트 -->
+	<select id="listRides" resultType="com.sp.rides.Rides">
+		SELECT * FROM (
+		    SELECT ROWNUM rnum, tb.* FROM (
+			    select f.facilityCode, themeName, g.genreName, f.name, s.gubunName
+			       from facility f
+			            left join rides r on f.facilityCode = r.facilityCode
+			            left join theme t on t.themeCode = f.themeCode
+			            left join genre g on r.genreCode = g.genreCode 
+			            left join facGubun b on f.gubunCode=b.gubunCode 
+			            left join stateGubun s on r.gubunCode = s.gubunCode
+			       where f.gubunCode=1
+	                   <where>
+                        <if test="searchValue != null and searchValue != ''">
+			                  <include refid="where-list"/>
+		                 </if>
+	                </where>
+                ORDER BY facilityCode DESC
+	<![CDATA[
+	        ) tb WHERE ROWNUM <= #{end}
+	    ) WHERE rnum >= #{start}
+	]]>
+	</select>
+
+	<!-- 시설명만 리스트로 가져오기 -->
+<!-- 	<select id="listName" resultType="com.sp.rides.Rides">
+	
+	    select f.name
+	       from facility f
+	            left join rides r on f.facilityCode = r.facilityCode
+	            left join theme t on t.themeCode = f.themeCode
+	            left join genre g on r.genreCode = g.genreCode 
+	            left join facGubun b on f.gubunCode=b.gubunCode 
+	            left join stateGubun s on r.gubunCode = s.gubunCode
+	       where f.gubunCode=1
+	                  
+	</select> -->
+ 
+
+	<!-- 	시설상세 글 개수 -->
+	<select id="InfodataCount" parameterType="map"
+	            resultType="Integer">
+		 select count (*) from
+	    (select * from ridesInfo)
+	     <where>
+	     	<if test="searchValue!=null and searchValue!='' ">
+	     	    <include refid="where-list"/>
+	     	</if>
+	     </where>   
+	</select>
+
+	<!-- 시설상세 리스트 -->
+	<select id="InfolistRides" resultType="com.sp.rides.Rides">
+		SELECT * FROM (
+		    SELECT ROWNUM rnum, tb.* FROM (
+				select f.facilityCode, name, ridesInfoCode, r.state 
+				from ridesInfo r
+				join facility f on f.facilityCode = r.facilityCode 
+				ORDER BY r.facilityCode DESC
+	<![CDATA[
+	        ) tb WHERE ROWNUM <= #{end}
+	    ) WHERE rnum >= #{start}
+	]]>
+	</select>
+	
+	<select id="readRides" parameterType="Integer" resultType="com.sp.rides.Rides">
+		select f.facilityCode,f.name, gubunName, boardingTime,passengers, minHeight,maxHeight, limit, congestion, genreName
+		from rides r
+            join stateGubun s on s.gubunCode=r.gubunCode
+			join genre g on g.genreCode=r.genreCode
+			right outer join facility f on r.facilityCode = f.facilityCode
+		where f.gubunCode=1 and f.facilityCode=#{num}
+	</select>
+	
+	<update id="updateRides" parameterType="com.sp.rides.Rides">
+		UPDATE rides SET gubunCode=#{gubunCode} WHERE facilityCode=#{facilityCode}
+	</update>
+	
+	<update id="updateInfoRides" parameterType="com.sp.rides.Rides">
+		UPDATE ridesInfo SET state=#{state} WHERE facilityCode=#{facilityCode} and ridesInfoCode=#{ridesInfoCode}
+	</update>
+	
+	<update id="updateRidesChg" parameterType="com.sp.rides.Rides">
+		UPDATE rides 
+		SET
+			boardingTime=#{boardingTime}
+			,passengers=#{passengers}
+			,minHeight=#{minHeight}
+			,maxHeight=#{maxHeight}
+			,limit=#{limit}
+			,congestion=#{congestion}
+			,genreCode=#{genreCode} 
+			,gubunCode=#{gubunCode} 
+		WHERE facilityCode=#{facilityCode}
+		
+	</update>
+	
+</mapper>

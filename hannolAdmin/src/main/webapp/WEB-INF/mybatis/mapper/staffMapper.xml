@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="staff">
+	<select id="loginStaff" parameterType="String" resultType="com.sp.staff.Staff">
+		SELECT SI.usersCode, SI.staffId, SI.staffPwd, S.name, S.authority
+		FROM STAFF S
+		JOIN STAFFINFO SI ON S.USERSCODE = SI.USERSCODE
+		WHERE staffId=#{staffId} AND working = 1
+	</select>
+
+	<select id="amIAdmin" parameterType="Integer" resultType="Integer">
+		SELECT NVL(COUNT(*),0)
+		FROM USERS
+		WHERE AUTHORITY='ROLE_ADMIN' AND USERSCODE = #{num} 
+	</select>
+	
+	   <!-- dataCount -->
+   <select id="dataCount" parameterType="map" resultType="Integer">
+   		SELECT NVL(COUNT(*),0) FROM STAFF S
+   		<where>
+	     	<if test="searchValue!=null and searchValue!='' ">
+	     	    <include refid="where-list"/>
+	     	</if>
+	    </where> 
+   </select>
+   
+	<select id="readStaff" parameterType="map" resultType="com.sp.staff.Staff">
+		SELECT S.USERSCODE, STAFFID, STAFFPWD, NAME, TEL, TO_CHAR(BIRTH,'YYYY-MM-DD') BIRTH, POST, ADDR1, ADDR2, EMAIL, 
+		ORIGINALFILENAME, SAVEFILENAME, TASK, WORKING, AUTHORITY,
+		D.DPCODE, DPNAME,
+		P.POSITIONCODE, POSITIONNAME,
+		T.THEMECODE, THEMENAME,
+        INDATE, OUTDATE
+		FROM STAFF S
+		JOIN STAFFINFO SI ON S.USERSCODE = SI.USERSCODE
+		JOIN DEPARTMENT D ON D.DPCODE = S.DPCODE
+		JOIN POSITION P ON P.POSITIONCODE = S.POSITIONCODE
+		JOIN THEME T ON T.THEMECODE = S.THEMECODE
+        LEFT OUTER JOIN (
+         SELECT INDATE, CODE FROM (
+		    SELECT EPCODE, GUBUN, MEMO, TO_CHAR(EPDATE,'YYYY-MM-DD') AS INDATE, E.USERSCODE AS CODE
+		    FROM EMPLOYED E
+            JOIN STAFF S ON S.USERSCODE = E.USERSCODE
+		    WHERE S.USERSCODE = #{usersCode} AND GUBUN = 1
+		    ORDER BY EPCODE
+		 )WHERE rownum= 1
+        ) I ON I.CODE = S.USERSCODE
+        LEFT OUTER JOIN (
+         SELECT OUTDATE, CODE FROM (
+		    SELECT EPCODE, GUBUN, MEMO, TO_CHAR(EPDATE,'YYYY-MM-DD') AS OUTDATE, E.USERSCODE AS CODE
+		    FROM EMPLOYED E
+            JOIN STAFF S ON S.USERSCODE = E.USERSCODE
+		    WHERE S.USERSCODE = #{usersCode} AND GUBUN = 0
+		    ORDER BY EPCODE DESC
+		 )WHERE rownum= 1
+        ) O ON O.CODE = S.USERSCODE
+		WHERE S.USERSCODE = #{usersCode}
+	</select>
+	
+	<sql id="where-list">
+	  <if test="searchKey=='name'">
+	      name =#{searchValue}
+	  </if>
+	  <if test="searchKey=='all'">
+	      (INSTR(name, #{searchValue}) &gt; 0)
+	      OR
+	      (INSTR(S.usersCode, #{searchValue}) &gt; 0)
+	  </if>
+	  <if test="searchKey=='usersCode'">
+	       INSTR(usersCode, #{searchValue}) &gt; 0
+	  </if>
+	</sql>
+	
+	<select id="listStaff" parameterType="map" resultType="com.sp.staff.Staff">
+		SELECT * FROM (
+		    SELECT ROWNUM rnum, tb.* FROM (
+			    SELECT S.USERSCODE, STAFFID, NAME, TEL, TO_CHAR(BIRTH,'YYYY-MM-DD') BIRTH, POST, ADDR1, ADDR2, EMAIL, 
+				ORIGINALFILENAME, SAVEFILENAME, TASK, WORKING, AUTHORITY,
+				D.DPCODE, DPNAME,
+				P.POSITIONCODE, POSITIONNAME,
+				T.THEMECODE, THEMENAME
+				FROM STAFF S
+				JOIN STAFFINFO SI ON S.USERSCODE = SI.USERSCODE
+				JOIN DEPARTMENT D ON D.DPCODE = S.DPCODE
+				JOIN POSITION P ON P.POSITIONCODE = S.POSITIONCODE
+				JOIN THEME T ON T.THEMECODE = S.THEMECODE
+                    <where>
+                         <if test="searchValue != null and searchValue != ''">
+			                  <include refid="where-list"/>
+		                 </if>
+	                </where>
+	            ORDER BY S.USERSCODE DESC
+	<![CDATA[
+	        ) tb WHERE ROWNUM <= #{end}
+	    ) WHERE rnum >= #{start}
+	]]>
+	</select>
+	
+	<!-- 없을 수 있는 값은 JDBCTYPE줘야함!! 체크할것 -->
+	<update id="updateStaff" parameterType="com.sp.staff.Staff">
+		UPDATE STAFF SET NAME = #{name}, TEL = #{tel},
+		BIRTH = #{birth},EMAIL = #{email}, 
+		POST = #{post}, ADDR1 = #{addr1}, ADDR2 = #{addr2} 
+		WHERE USERSCODE = #{usersCode}
+	</update>
+	
+	<!-- 권한은 테이블 두개에 변경필요. 정보 수정과는 따로 실행할것 -->
+	<update id="updateUsersAuth" parameterType="map">
+		UPDATE USERS SET AUTHORITY = #{authority}
+		WHERE USERSCODE = #{usersCode}
+	</update>
+	
+	<update id="updateStaffAuth" parameterType="map">
+		UPDATE STAFF SET AUTHORITY = #{authority}
+		WHERE USERSCODE = #{usersCode}
+	</update>
+	
+	<!-- 입사/퇴사 변경 + working상태변경 -->
+	<insert id="inoutStaff" parameterType="map">
+		INSERT INTO EMPLOYED(EPCODE, GUBUN, MEMO, EPDATE, USERSCODE)
+		VALUES(EMPLOYED_SEQ.NEXTVAL, #{gubun}, #{memo}, #{epDate}, #{usersCode})
+	</insert>
+	
+	<update id="updateWorking" parameterType="map">
+		UPDATE STAFF SET WORKING = #{working} WHERE USERSCODE = #{usersCode}
+	</update>
+	
+	<!-- 테마, 부서, 직위  : 이름받아서 코드번호 가져와야함 -->
+	<select id="readTheme" parameterType="map" resultType="Integer">
+		SELECT THEMECODE 
+		FROM THEME 
+		WHERE THEMENAME = #{themeName} 
+	</select>
+	
+	<select id="readDepart" parameterType="map" resultType="Integer">
+		SELECT DPCODE 
+		FROM DEPARTMENT 
+		WHERE DPNAME = #{dpName} 
+	</select>
+	
+	<select id="readPosition" parameterType="map" resultType="Integer">
+		SELECT POSITIONCODE 
+		FROM POSITION 
+		WHERE POSITIONNAME = #{positionName} 
+	</select>
+	
+	<delete id="deleteCareer" parameterType="Integer">
+		DELETE FROM CAREER WHERE USERSCODE = #{usersCode}
+	</delete>
+	
+	<update id="updatePwd" parameterType="com.sp.staff.Staff">
+		UPDATE STAFFINFO SET STAFFPWD = #{staffPwd} WHERE USERSCODE = #{usersCode}
+	</update>
+	
+	<select id="readStaffById" parameterType="String" resultType="com.sp.staff.Staff">
+		SELECT s.usersCode, name, authority FROM staff si
+		JOIN staffinfo s ON s.usersCode=si.usersCode
+		WHERE staffId=#{staffId}
+	</select>
+</mapper>
